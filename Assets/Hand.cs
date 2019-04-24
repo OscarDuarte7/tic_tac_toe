@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class Hand : MonoBehaviour
@@ -9,15 +10,52 @@ public class Hand : MonoBehaviour
 
     private Rigidbody rb;
 
+
+    //Time
+    private float nextActionTime = 0.0f;
+    public float period = 0.1f;
+    private float nextActionTimeHalf = 0.0f;
+    public float periodHalf = 0.01f;
+    //Tracker
+    private Vector3 posVRPN;
+    private float x;
+    private float y;
+    private float z;
+    private Queue<Vector3> bufferTracker;
+    private int tamBuffer = 40;
+    // Movement
+    private float minArmDistanceZ = 0.05f;
+    private float maxArmDistanceZ = 1.9f;
+    private bool moveArmZ = false;
+    private int dirArmZ = 0;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+         GetComponent<MeshRenderer>().material.SetColor("_Color", Color.black);
         tag = "P1";
+        bufferTracker = new Queue<Vector3>();
+
     }
 
     void Update()
     {
-        move();
+
+
+        if (Time.time > nextActionTimeHalf)
+        {
+            nextActionTimeHalf += periodHalf;
+            InputDataTracker("Tracker0@10.3.137.218");
+            move();
+        }
+
+       
+
+
+
+
+
+
     }
 
 
@@ -26,41 +64,71 @@ public class Hand : MonoBehaviour
         float moveHorizontal = 0.0f;
         float moveForward = 0.0f;
         float moveVertical = 0.0f;
+        ////////////////////////////
 
-        if (Input.GetKey(KeyCode.W))
-        {
-            moveForward = 1.0f;
-        }
-        else if (Input.GetKey(KeyCode.S))
-        {
-            moveForward = -1.0f;
 
-        }
-        else if (Input.GetKey(KeyCode.A))
+        dirArmZ = 0;
+        moveArmZ = false;
+        int i = 1;
+        if (bufferTracker.Count >= tamBuffer)
         {
-            moveHorizontal = -1.0f;
+            while (!moveArmZ && i < tamBuffer - 1)
+            {
+                float dif = Mathf.Abs(bufferTracker.ElementAt(tamBuffer - 1).magnitude - bufferTracker.ElementAt(tamBuffer - i - 1).magnitude);
+                if (dif >= minArmDistanceZ)
+                {
+                    moveArmZ = true;
+                    Vector3 m = (bufferTracker.ElementAt(tamBuffer - 1) - bufferTracker.ElementAt(tamBuffer - i - 1));
+                    m /= m.magnitude;
 
-        }
-        else if (Input.GetKey(KeyCode.D))
-        {
-            moveHorizontal = 1.0f;
+                    rb.velocity = m * speed;
+                    Debug.Log(rb.velocity);
+                }
+                else
+                {
 
-        }
-        else if (Input.GetKey(KeyCode.UpArrow))
-        {
-            moveVertical = 1.0f;
-
-        }
-        else if (Input.GetKey(KeyCode.DownArrow))
-        {
-            moveVertical = -1.0f;
-
+                    rb.velocity *= 0;
+                }
+                i++;
+            }
         }
 
+            ///////////////////////////
 
-        Vector3 movement = new Vector3(moveHorizontal, moveVertical, moveForward);
-        rb.velocity = movement * speed;
+           /* if (Input.GetKey(KeyCode.W))
+            {
+                moveForward = 0.5f;
+            }
+            else if (Input.GetKey(KeyCode.S))
+            {
+                moveForward = -1.0f;
 
+            }
+            else if (Input.GetKey(KeyCode.A))
+            {
+                moveHorizontal = -1.0f;
+
+            }
+            else if (Input.GetKey(KeyCode.D))
+            {
+                moveHorizontal = 1.0f;
+
+            }
+            else if (Input.GetKey(KeyCode.UpArrow))
+            {
+                moveVertical = 1.0f;
+
+            }
+            else if (Input.GetKey(KeyCode.DownArrow))
+            {
+                moveVertical = -1.0f;
+
+            }
+
+
+            Vector3 movement = new Vector3(moveHorizontal, moveVertical, moveForward);
+            rb.velocity = movement * speed;*/
+        
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -70,7 +138,7 @@ public class Hand : MonoBehaviour
 
     private void OnCollisionStay(Collision collision)
     {
-        if(Input.GetKey(KeyCode.F) && collision.gameObject.tag == "W")
+        if( collision.gameObject.tag == "W")
         {
 
             if(tag == "P1")
@@ -95,8 +163,25 @@ public class Hand : MonoBehaviour
 
     private void OnCollisionExit(Collision collision)
     {
-        GetComponent<MeshRenderer>().material.SetColor("_Color", Color.white);
+        GetComponent<MeshRenderer>().material.SetColor("_Color", Color.black);
 
+    }
+
+
+    void InputDataTracker(string address)
+    {
+        posVRPN = VRPN.vrpnTrackerPos(address, 3);
+
+        x = 1 * posVRPN.x;
+        y = -1 * posVRPN.z;
+        z = -1 * posVRPN.y;
+
+        Vector3 qVector = new Vector3(x, y, z);
+        bufferTracker.Enqueue(qVector);
+        if (bufferTracker.Count > tamBuffer)
+        {
+            bufferTracker.Dequeue();
+        }
     }
 
     // Update is called once per frame
